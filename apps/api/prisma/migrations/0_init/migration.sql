@@ -1,0 +1,2 @@
+-- Prisma will normally generate this; included here as a bootstrap.
+-- You can run `npx prisma migrate deploy` inside the API container.

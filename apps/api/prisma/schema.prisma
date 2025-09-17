@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionType {
+  PRACTICE
+  QUALIFYING
+  SPRINT_QUALIFYING
+  SPRINT
+  RACE
+}
+
+enum ResultStatus {
+  FINISHED
+  DNF
+  DSQ
+  DNS
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  roles     UserRole[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id    String     @id @default(cuid())
+  name  String     @unique // ADMIN, STEWARD, DRIVER, VIEWER
+  users UserRole[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Season {
+  id            String   @id @default(cuid())
+  name          String
+  year          Int
+  defaultTZ     String   @default("UTC")
+  pointsConfig  Json     // JSON config (race/sprint/fastestLap rules, DNF/DNS policy)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  events        Event[]
+  entries       Contract[]
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  primary   String
+  secondary String
+  logoPath  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries   Contract[]
+}
+
+model Driver {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  number    Int
+  nationality String?
+  avatarPath String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries   Contract[]
+}
+
+model Contract {
+  // Driver-to-Team mapping per Season, with dates (supports mid-season moves)
+  id         String  @id @default(cuid())
+  seasonId   String
+  teamId     String
+  driverId   String
+  startDate  DateTime
+  endDate    DateTime?
+  isReserve  Boolean @default(false)
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([seasonId, teamId, driverId])
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  seasonId  String
+  round     Int
+  name      String
+  track     String
+  startDate DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  season  Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  @@unique([seasonId, round])
+}
+
+model Session {
+  id        String      @id @default(cuid())
+  eventId   String
+  type      SessionType
+  plannedAt DateTime
+  isFinal   Boolean     @default(false)
+
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  results Result[]
+}
+
+model Result {
+  id        String       @id @default(cuid())
+  sessionId String
+  driverId  String
+  teamId    String
+  position  Int?
+  grid      Int?
+  status    ResultStatus @default(FINISHED)
+  laps      Int?
+  totalTime Int?         // milliseconds
+  gapMs     Int?         // to leader
+  bestLapMs Int?
+  points    Int          @default(0)
+  notes     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  driver  Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  penalties Penalty[]
+
+  @@unique([sessionId, driverId])
+  @@index([teamId])
+}
+
+model Penalty {
+  id        String   @id @default(cuid())
+  resultId  String
+  type      String   // time, grid, points
+  value     Int      // milliseconds for time; positions for grid; points for points
+  reason    String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  result Result @relation(fields: [resultId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String
+  action    String   // RESULT_OVERRIDE, CREATE, UPDATE, DELETE
+  entity    String   // e.g., "Result:abc123"
+  reason    String?
+  diff      Json?
+  createdAt DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+}
