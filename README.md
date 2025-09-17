@@ -70,6 +70,10 @@ Once containers are up:
 - Admin overrides require a **reason**; changes are logged to `AuditLog` (Admin/Steward visible only).
 - Public REST endpoints under `/api/v1/*` are read-only and documented via Swagger.
 
+### Admin UI status (in progress)
+- Credentials-based login now available at `/admin/login` via NextAuth (Credentials provider).
+- Authenticated admin shell for Admin/Steward roles with placeholder sections while CRUD tooling is implemented.
+
 ---
 
 ### Security & Ops
